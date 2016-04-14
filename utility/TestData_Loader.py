@@ -3,6 +3,7 @@ import os
 import inspect
 
 def loadTestData(class_obj):
+    '''http://stackoverflow.com/questions/11705055/python-get-full-package-module-name'''
     full_class_name = inspect.getmodule(class_obj).__name__
     test_path = getTestDataPath(full_class_name)
     excel_util = Excel_Utils(test_path, "Sheet1")
