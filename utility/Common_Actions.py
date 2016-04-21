@@ -2,6 +2,7 @@ import os
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from ConfigParser import SafeConfigParser
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
 def openBrowser(browser_name):
     driver = None
@@ -24,4 +25,19 @@ def getBrowserFromConfig():
     browser = parser.get('runConfig', 'browser')
     return browser
 
+def openRemoteBrowser(remote_params):
+    print "param is:", remote_params
+    browser = remote_params[2]
+    ip = remote_params[0]
+    port = remote_params[1]
+    if browser == "firefox":
+        cap = DesiredCapabilities.FIREFOX
     
+    remote_url = "http://" + ip + ":" + str(port) + "/wd/hub"
+    print "remote url is:", remote_url
+    
+    driver = webdriver.Remote(
+                command_executor=remote_url,
+                desired_capabilities=cap
+            )
+    return driver    

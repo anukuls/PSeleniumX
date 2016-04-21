@@ -12,7 +12,7 @@ from selenium.common.exceptions import TimeoutException
 #from selenium.webdriver.firefox.webdriver import WebDriver
     
 def textfield_Search(dr):
-    dr.wait = WebDriverWait(dr, 10)
+    dr.wait = WebDriverWait(dr, 30)
     try:
         element = dr.wait.until(EC.presence_of_element_located((By.NAME, "q"))) 
     except TimeoutException:
@@ -21,7 +21,7 @@ def textfield_Search(dr):
 #end textfield_Search
 
 def button_Search(dr):
-    dr.wait = WebDriverWait(dr, 10)
+    dr.wait = WebDriverWait(dr, 30)
     try:
         element = dr.wait.until(EC.element_to_be_clickable((By.NAME, "btnG"))) 
     except TimeoutException:
@@ -30,7 +30,7 @@ def button_Search(dr):
 #end button_Search
     
 def link_Selenium(dr):
-    dr.wait = WebDriverWait(dr, 10)
+    dr.wait = WebDriverWait(dr, 30)
     try:
         element = dr.wait.until(EC.presence_of_element_located((By.LINK_TEXT, "Selenium WebDriver")))
     except Exception, e:
@@ -39,7 +39,7 @@ def link_Selenium(dr):
 #end link_Selenium
     
 def body_SeleniumPage(dr):
-    dr.wait = WebDriverWait(dr, 10)
+    dr.wait = WebDriverWait(dr, 30)
     try:
         dr.wait.until(EC.presence_of_element_located((By.LINK_TEXT, "Browser Automation")))
     except Exception, e:
