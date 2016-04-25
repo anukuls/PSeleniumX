@@ -2,11 +2,24 @@ import unittest
 import os
 import testScripts
 import time
-from ConfigParser import SafeConfigParser
+from xml.dom.minidom import parse
+import xml.dom.minidom
 from utility.HTMLTestRunner import HTMLTestRunner
 import inspect
 
 class Batch_Driver():
+    
+    def parseXMLForSuites(self, xml_file):
+        class_names_list = []
+        dtree = xml.dom.minidom.parse(xml_file)
+        suite = dtree.documentElement
+        tests = suite.getElementsByTagName("class")
+        for test in tests:
+            class_names = test.getElementsByTagName('name')
+            for cname in class_names:
+                class_names_list.append(str(cname.childNodes[0].data))
+            
+        return class_names_list
     
     '''
         Define batch config in the form of an xml, parse data from it.
@@ -14,18 +27,18 @@ class Batch_Driver():
         be run automatically or not.
     '''
     def getSuiteFromConfig(self):
-        parser = SafeConfigParser()
-        base_driver_config_path = os.getcwd() + "\\..\\config\\base_driver_config.ini"
-        parser.read(base_driver_config_path)
-        class_names = parser.get('runConfig', 'runClass')         
-        class_names_list = class_names.split(',')         
+#         parser = SafeConfigParser()
+        batch_driver_config_path = os.getcwd() + "\\..\\config\\batch_driver_config.xml"
+#         parser.read(base_driver_config_path)
+#         class_names = parser.get('runConfig', 'runClass')         
+        class_names_list = self.parseXMLForSuites(batch_driver_config_path)
+#         class_names_list = class_names.split(',')         
         suite_arr = []
          
         for cname in class_names_list:
             complete_class_name = "testScripts." + cname
             suite_arr.append(eval(complete_class_name))
              
-        print suite_arr
         return suite_arr
     
     #TODO: Form an xml file with the list

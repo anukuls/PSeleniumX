@@ -3,7 +3,7 @@ import os
 import testScripts
 import time
 from utility.HTMLTestRunner import HTMLTestRunner
-import inspect
+# import inspect
 import yaml
 from utility.ParameterizedTestCase import ParameterizedTestCase
 
@@ -100,6 +100,9 @@ class SeleniumGrid_Distributed_Driver():
         suite_array = self.getSuiteFromConfig()
         prepared_suites = self.prepareSuites(suite_array)
         self.executeSuites(prepared_suites)
+        '''
+            Need to implement rerun failures capability
+        '''
         
 grid = SeleniumGrid_Distributed_Driver()
 grid.main()

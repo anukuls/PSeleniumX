@@ -1,0 +1,7 @@
+<suite name="Suite">
+   <parameter name="browser" value="chrome" />    
+   <class>
+      <name>SuiteC.google_search.Google_Search</name>
+      <name>SuiteD.google_search.Google_Search</name>     
+   </class>
+</suite> <!-- Suite -->

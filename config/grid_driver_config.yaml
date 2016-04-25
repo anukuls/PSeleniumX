@@ -6,3 +6,9 @@ runConfig:
         browser: firefox
         tests:
             SuiteGrid.google_search_grid.Google_Search
+    node2:
+        ip: 172.18.95.117
+        port: 5555
+        browser: firefox
+        tests:
+            SuiteGrid.google_search_grid1.Google_Search
