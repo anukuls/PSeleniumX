@@ -622,12 +622,12 @@ class HTMLTestRunner(Template_mixin):
         self.startTime = datetime.datetime.now()
 
 
-    def run(self, test):
+    def run(self, test, file_path):
         "Run the given test case or test suite."
         result = _TestResult(self.verbosity)
         test(result)
         self.stopTime = datetime.datetime.now()
-        self.generateReport(test, result)
+        self.generateReport(test, result, file_path)
         print >>sys.stderr, '\nTime Elapsed: %s' % (self.stopTime-self.startTime)
         return result
 
@@ -669,7 +669,7 @@ class HTMLTestRunner(Template_mixin):
         ]
 
 
-    def generateReport(self, test, result):
+    def generateReport(self, test, result, filepath):
         report_attrs = self.getReportAttributes(result)
         generator = 'HTMLTestRunner %s' % __version__
         stylesheet = self._generate_stylesheet()
@@ -684,7 +684,9 @@ class HTMLTestRunner(Template_mixin):
             report = report,
             ending = ending,
         )
-        self.stream.write(output.encode('utf8'))
+        f = open(filepath, "a") 
+        f.write(output.encode('utf8'))
+#         self.stream.write(output.encode('utf8'))
 
 
     def _generate_stylesheet(self):
