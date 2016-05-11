@@ -36,5 +36,5 @@ class ParameterizedTestCase(unittest.TestCase):
 #         suite = unittest.TestSuite()
 #         for name in testnames:
 #             suite.addTest(testcase_klass(name, param=param))
-        print "parameterized suite is:", suite
+#         print "parameterized suite is:", suite
         return suite

@@ -96,7 +96,10 @@ import sys
 import time
 import unittest
 from xml.sax import saxutils
-
+# from multiprocessing import Process, Queue
+import inspect
+# import os
+import ast
 
 # ------------------------------------------------------------------------
 # The redirectors below are used to capture output during testing. Output
@@ -620,16 +623,40 @@ class HTMLTestRunner(Template_mixin):
             self.description = description
 
         self.startTime = datetime.datetime.now()
-
-
-    def run(self, test, file_path):
+        
+    def threadedRun(self, test, file_path, log_path):
         "Run the given test case or test suite."
         result = _TestResult(self.verbosity)
         test(result)
         self.stopTime = datetime.datetime.now()
-        self.generateReport(test, result, file_path)
+        '''
+            Need to aggregate the report. Rather than calling generateReport for
+            every run method call, aggregate the results
+        '''
+#         print >>sys.stderr, '\nResult is: %s' % result
+#         f = open("D:\\AnukulNew\\result.log", "a")
+#         f.write(result)
+        self.generateReportPerProcess(test, result, file_path, log_path)
+        print >>sys.stderr, '\nTime Elapsed: %s' % (self.stopTime-self.startTime)
+        return result    
+
+    def run(self, test):
+        "Run the given test case or test suite."
+        result = _TestResult(self.verbosity)
+        test(result)
+        self.stopTime = datetime.datetime.now()
+        '''
+            Need to aggregate the report. Rather than calling generateReport for
+            every run method call, aggregate the results
+        '''
+#         print >>sys.stderr, '\nResult is: %s' % result
+#         f = open("D:\\AnukulNew\\result.log", "a")
+#         f.write(result)
+        self.generateReport(test, result)
         print >>sys.stderr, '\nTime Elapsed: %s' % (self.stopTime-self.startTime)
         return result
+        
+#         queue.put(result)
 
 
     def sortResult(self, result_list):
@@ -668,8 +695,49 @@ class HTMLTestRunner(Template_mixin):
             ('Status', status),
         ]
 
+    def getConsolidatedReportAttributes(self, log_path):
+        """
+        Return report attributes as a list of (name, value).
+        Override this to add custom attributes.
+        """
+        startTime = str(self.startTime)[:19]
+        duration = str(datetime.datetime.now() - self.startTime)
+        status = []
+        result = self.readResultFromLogpath(log_path)
+        if result['passed']: status.append('Pass %s'    % result['passed'])
+        if result['failed']: status.append('Failure %s' % result['failed'])
+        if result['error']:   status.append('Error %s'   % result['error']  )
+        if status:
+            status = ' '.join(status)
+        else:
+            status = 'none'
+            
+#         print "status :", status
+        return [
+            ('Start Time', startTime),
+            ('Duration', duration),
+            ('Status', status),
+        ]    
+        
+    def generateReportPerProcess(self, test, result, filepath, logpath):
+        report_attrs = self.getReportAttributes(result)
+        generator = 'HTMLTestRunner %s' % __version__
+        stylesheet = self._generate_stylesheet()
+        heading = self._generate_heading(report_attrs)
+        report = self._generate_report_per_process(result, logpath)
+        ending = self._generate_ending()
+        output = self.HTML_TMPL % dict(
+            title = saxutils.escape(self.title),
+            generator = generator,
+            stylesheet = stylesheet,
+            heading = heading,
+            report = report,
+            ending = ending,
+        )
+#         f = open(filepath, "a") 
+#         f.write(output.encode('utf8'))
 
-    def generateReport(self, test, result, filepath):
+    def generateReport(self, test, result):
         report_attrs = self.getReportAttributes(result)
         generator = 'HTMLTestRunner %s' % __version__
         stylesheet = self._generate_stylesheet()
@@ -684,10 +752,27 @@ class HTMLTestRunner(Template_mixin):
             report = report,
             ending = ending,
         )
-        f = open(filepath, "a") 
-        f.write(output.encode('utf8'))
-#         self.stream.write(output.encode('utf8'))
+#         f = open(filepath, "a") 
+#         f.write(output.encode('utf8'))
+        self.stream.write(output.encode('utf8'))
 
+    def generateConsolidatedReport(self, filepath, logpath):
+        report_attrs = self.getConsolidatedReportAttributes(logpath)
+        generator = 'HTMLTestRunner %s' % __version__
+        stylesheet = self._generate_stylesheet()
+        heading = self._generate_heading(report_attrs)
+        report = self._generate_consolidated_report(logpath)
+        ending = self._generate_ending()
+        output = self.HTML_TMPL % dict(
+            title = saxutils.escape(self.title),
+            generator = generator,
+            stylesheet = stylesheet,
+            heading = heading,
+            report = report,
+            ending = ending
+        )
+        f = open(filepath, "w") 
+        f.write(output.encode('utf8'))
 
     def _generate_stylesheet(self):
         return self.STYLESHEET_TMPL
@@ -707,13 +792,322 @@ class HTMLTestRunner(Template_mixin):
             description = saxutils.escape(self.description),
         )
         return heading
+    
+    def readResultFromLogpath(self, logpath):
+        count = 0
+        passed = 0
+        failed = 0
+        error = 0
+        passed_classes = []
+        failed_classes = []
+        error_classes = []
+        flag_counter = 1
+        with open(logpath) as f:
+            lines = f.readlines()
+            for line in lines:
+        #         print line.rstrip('\n')
+                if "----" in line:
+                    flag_counter = 0
+                else:
+                    splitter = line.split('=')
+                    if flag_counter == 1:
+                        count = count + int(splitter[1])
+                    elif flag_counter == 2:
+                        passed = passed + int(splitter[1])
+                    elif flag_counter == 3:
+                        failed = failed + int(splitter[1])
+                    elif flag_counter == 4:
+                        error = error + int(splitter[1])
+                    elif flag_counter == 5:
+                        passed_classes = passed_classes + eval(splitter[1])
+                    elif flag_counter == 6:
+                        failed_classes = failed_classes + eval(splitter[1])
+                    elif flag_counter == 7:
+                        error_classes = error_classes + eval(splitter[1])
+                             
+                flag_counter = flag_counter+1
+        
+#         print "error_classes :", error_classes        
+        return {'count' : count, 'passed' : passed, 'failed' : failed, 'error' : error, 'pass_classes' : passed_classes, 'fail_classes' : failed_classes, 'error_classes' : error_classes}    
 
+    def _generate_consolidated_report(self, logpath):
+        count = 0
+        passed = 0
+        failed = 0
+        error = 0
+        passed_classes = []
+        failed_classes = []
+        error_classes = []
+        sortedResult = []
+        flag_counter = 1
+        with open(logpath) as f:
+            lines = f.readlines()
+            for line in lines:
+        #         print line.rstrip('\n')
+                if "----" in line:
+                    flag_counter = 0
+                elif "class_results" in line:
+                    split = line.split(':=')
+                    '''http://stackoverflow.com/questions/1894269/convert-string-representation-of-list-to-list-in-python'''
+                    sortedResult = sortedResult + ast.literal_eval(split[1])    
+                else:
+                    splitter = line.split('=')
+                    if flag_counter == 1:
+                        count = count + int(splitter[1])
+                    elif flag_counter == 2:
+                        passed = passed + int(splitter[1])
+                    elif flag_counter == 3:
+                        failed = failed + int(splitter[1])
+                    elif flag_counter == 4:
+                        error = error + int(splitter[1])
+                    elif flag_counter == 5:
+                        passed_classes = passed_classes + eval(splitter[1])
+                    elif flag_counter == 6:
+                        failed_classes = failed_classes + eval(splitter[1])
+                    elif flag_counter == 7:
+                        error_classes = error_classes + eval(splitter[1])
+                             
+                flag_counter = flag_counter+1
+        
+#         print "final cls_results :", sortedResult
+#         print "ERROR CLASSES:", error_classes
+        rows = []
+        
+        for cid, (cls, cls_results) in enumerate(sortedResult):
+            np = nf = ne = 0
+            for n,t,o,e in cls_results:
+                if n == 0: np += 1
+                elif n == 1: nf += 1
+                else: ne += 1
+
+            desc = cls.split(' ')[1].split('>')[0]
+
+            row = self.REPORT_CLASS_TMPL % dict(
+                style = ne > 0 and 'errorClass' or nf > 0 and 'failClass' or 'passClass',
+                desc = desc,
+                count = np+nf+ne,
+                Pass = np,
+                fail = nf,
+                error = ne,
+                cid = 'c%s' % (cid+1),
+            )
+                
+            rows.append(row)
+
+            for tid, (n,t,o,e) in enumerate(cls_results):
+                self._generate_consolidated_report_test(rows, cid, tid, n, t, o, e)
+        
+#         cid = 0
+#         for err_class in error_classes:
+#             print "in ERROR CLASSES..."
+#             row = self.REPORT_CLASS_TMPL % dict(
+#                 style = 'errorClass',
+#                 desc = err_class,
+#                 count = 1,
+#                 Pass = 0,
+#                 fail = 0,
+#                 error = 1,
+#                 cid = 'c%s' % (cid+1)
+#             )
+#             cid = cid + 1
+#             rows.append(row)
+#             
+#             for tid, (n,t,o,e) in enumerate(cls_results):
+#                 print "new t is:", t
+#                 new_t = t.split('.')[-1].split(')')[0]
+#                 print "new_t is:", new_t
+#                 print "new t class:", t.__class__.__name__
+#                 print "newest t class:", new_t.__class__.__name__
+#                 self._generate_consolidated_report_test(rows, cid, tid, n, t, o, e)
+#         
+# #         cid = 0    
+#         for fail_class in failed_classes:
+#             print "in FAILED CLASSES..."
+#             row = self.REPORT_CLASS_TMPL % dict(
+#                 style = 'failClass',
+#                 desc = fail_class,
+#                 count = 1,
+#                 Pass = 0,
+#                 fail = 1,
+#                 error = 0,
+#                 cid = 'c%s' % (cid+1)
+#             )
+#             cid = cid + 1
+#             rows.append(row)    
+#             
+#             for tid, (n,t,o,e) in enumerate(cls_results):
+#                 self._generate_consolidated_report_test(rows, cid, tid, n, t, o, e)
+#             
+# #         cid = 0    
+#         for pass_class in passed_classes:
+#             print "in PASSED CLASSES..."
+#             row = self.REPORT_CLASS_TMPL % dict(
+#                 style = 'passClass',
+#                 desc = pass_class,
+#                 count = 1,
+#                 Pass = 1,
+#                 fail = 0,
+#                 error = 0,
+#                 cid = 'c%s' % (cid+1)
+#             )
+#             cid = cid + 1
+#             rows.append(row)    
+#             
+#             for tid, (n,t,o,e) in enumerate(cls_results):
+#                 self._generate_consolidated_report_test(rows, cid, tid, n, t, o, e)
+#             
+        report = self.REPORT_TMPL % dict(
+            test_list = ''.join(rows),
+            count = str(count),
+            Pass = str(passed),
+            fail = str(failed),
+            error = str(error),
+        )
+                
+        return report
+    
+    def _generate_report_per_process(self, result, log_path):
+        rows = []
+        passed_classes = []
+        class_results = []
+        sortedResult = self.sortResult(result.result)
+#         print "sortedResult :", sortedResult
+        
+        for result_tuples in sortedResult:
+            list_result_tuples = list(result_tuples)
+            test_class_string = str(list_result_tuples[0])
+#             print "test_class_string:", test_class_string
+            for test_class_results in list_result_tuples[1]:
+                list_test_class_result = list(test_class_results)
+                var1 = list_test_class_result[0]
+                var2 = str(list_test_class_result[1])
+                var3 = list_test_class_result[2]
+                var4 = list_test_class_result[3]
+                new_test_class_result_list = [var1, var2, var3, var4]
+                new_test_class_result_list_of_tuple = [tuple(new_test_class_result_list)]
+                
+#             print "new_test_class_result_list_of_tuple:", new_test_class_result_list_of_tuple
+            modified_list_result_tuples = (test_class_string, new_test_class_result_list_of_tuple)
+            class_results.append(modified_list_result_tuples)
+            
+#         print "asal_class_results:", class_results
+                
+        for cid, (cls, cls_results) in enumerate(sortedResult):
+            
+#             for x in cls_results:
+#                 list_x = list(x)
+#                 var1 = list_x[0]
+#                 var2 = str(list_x[1])
+#                 var3 = list_x[2]
+#                 var4 = list_x[3]
+#                 new_list = [var1, var2, var3, var4]
+#                 new_tuple = tuple(new_list)    
+#                 class_results.append(new_tuple)
+                 
+            # subtotal for a class
+#             print "cid:", cid
+#             print "cls:", cls
+#             print "class_results:", class_results
+#             print "original class_results:", cls_results
+            np = nf = ne = 0
+            for n,t,o,e in cls_results:
+                if n == 0: 
+                    np += 1
+                    if cls.__module__ == "__main__":
+                        pass_desc = cls.__name__
+                    else:
+                        name = "%s.%s" % (cls.__module__, cls.__name__)
+                        doc = cls.__doc__ and cls.__doc__.split("\n")[0] or ""
+                        pass_desc = doc and '%s: %s' % (name, doc) or name
+                    passed_classes.append(pass_desc)
+                elif n == 1: nf += 1
+                else: ne += 1
+
+            # format class description
+            if cls.__module__ == "__main__":
+                name = cls.__name__
+            else:
+                name = "%s.%s" % (cls.__module__, cls.__name__)
+            doc = cls.__doc__ and cls.__doc__.split("\n")[0] or ""
+            desc = doc and '%s: %s' % (name, doc) or name
+
+            row = self.REPORT_CLASS_TMPL % dict(
+                style = ne > 0 and 'errorClass' or nf > 0 and 'failClass' or 'passClass',
+                desc = desc,
+                count = np+nf+ne,
+                Pass = np,
+                fail = nf,
+                error = ne,
+                cid = 'c%s' % (cid+1),
+            )
+                
+            rows.append(row)
+
+            for tid, (n,t,o,e) in enumerate(cls_results):
+                self._generate_report_test(rows, cid, tid, n, t, o, e)
+
+        report = self.REPORT_TMPL % dict(
+            test_list = ''.join(rows),
+            count = str(result.success_count+result.failure_count+result.error_count),
+            Pass = str(result.success_count),
+            fail = str(result.failure_count),
+            error = str(result.error_count),
+        )
+        
+        count_str = "count = %s \n" % str(result.success_count+result.failure_count+result.error_count)
+        pass_str = "pass = %s \n" % str(result.success_count)
+        fail_str = "fail = %s \n" % str(result.failure_count)
+        err_str = "error = %s \n" % str(result.error_count)
+    
+        all_errors = result.errors
+        error_classes = []
+        for err in all_errors:
+            err_cls_name = err[0].__class__.__name__
+            err_mod_name = inspect.getmodule(err[0].__class__).__name__
+            full_err_class_name = "testScripts." + str(err_mod_name) + "." + str(err_cls_name)             
+            error_classes.append(full_err_class_name)
+            
+        all_failures = result.failures
+        failure_classes = []
+        for failure in all_failures:
+            fail_cls_name = failure[0].__class__.__name__
+            fail_mod_name = inspect.getmodule(failure[0].__class__).__name__
+            full_fail_class_name = "testScripts." + str(fail_mod_name) + "." + str(fail_cls_name)
+            failure_classes.append(full_fail_class_name)
+ 
+        all_failed_classes = error_classes + failure_classes
+        
+        passed_classes_str = "passed_classes = %s \n" % str(passed_classes) 
+        failed_classes_str = "failed_classes = %s \n" % str(failure_classes)
+        error_classes_str = "error_classes = %s \n" % str(error_classes)
+
+        '''
+            Capture all results in a log file, to be read by SeleniumGrid_Distributed_Driver
+            for further processing
+        '''
+        with open(log_path, "a") as f:
+            f.write(count_str)
+            f.write(pass_str)
+            f.write(fail_str)
+            f.write(err_str)
+            f.write(passed_classes_str)
+            f.write(failed_classes_str)
+            f.write(error_classes_str)
+            f.write("class_results:=")
+            f.write(str(class_results))
+            f.write("\n")
+            f.write("----------")
+            f.write("\n")
+        
+        return report
 
     def _generate_report(self, result):
         rows = []
         sortedResult = self.sortResult(result.result)
+#         print "sortedResult :", sortedResult
+                
         for cid, (cls, cls_results) in enumerate(sortedResult):
-            # subtotal for a class
+            
             np = nf = ne = 0
             for n,t,o,e in cls_results:
                 if n == 0: np += 1
@@ -737,6 +1131,7 @@ class HTMLTestRunner(Template_mixin):
                 error = ne,
                 cid = 'c%s' % (cid+1),
             )
+                
             rows.append(row)
 
             for tid, (n,t,o,e) in enumerate(cls_results):
@@ -749,6 +1144,7 @@ class HTMLTestRunner(Template_mixin):
             fail = str(result.failure_count),
             error = str(result.error_count),
         )
+    
         return report
 
 
@@ -758,6 +1154,47 @@ class HTMLTestRunner(Template_mixin):
         tid = (n == 0 and 'p' or 'f') + 't%s.%s' % (cid+1,tid+1)
         name = t.id().split('.')[-1]
         doc = t.shortDescription() or ""
+        desc = doc and ('%s: %s' % (name, doc)) or name
+        tmpl = has_output and self.REPORT_TEST_WITH_OUTPUT_TMPL or self.REPORT_TEST_NO_OUTPUT_TMPL
+
+        # o and e should be byte string because they are collected from stdout and stderr?
+        if isinstance(o,str):
+            # TODO: some problem with 'string_escape': it escape \n and mess up formating
+            # uo = unicode(o.encode('string_escape'))
+            uo = o.decode('latin-1')
+        else:
+            uo = o
+        if isinstance(e,str):
+            # TODO: some problem with 'string_escape': it escape \n and mess up formating
+            # ue = unicode(e.encode('string_escape'))
+            ue = e.decode('latin-1')
+        else:
+            ue = e
+
+        script = self.REPORT_TEST_OUTPUT_TMPL % dict(
+            id = tid,
+            output = saxutils.escape(uo+ue),
+        )
+
+        row = tmpl % dict(
+            tid = tid,
+            Class = (n == 0 and 'hiddenRow' or 'none'),
+            style = n == 2 and 'errorCase' or (n == 1 and 'failCase' or 'none'),
+            desc = desc,
+            script = script,
+            status = self.STATUS[n],
+        )
+        rows.append(row)
+        if not has_output:
+            return
+        
+    def _generate_consolidated_report_test(self, rows, cid, tid, n, t, o, e):
+        # e.g. 'pt1.1', 'ft1.1', etc
+        has_output = bool(o or e)
+        tid = (n == 0 and 'p' or 'f') + 't%s.%s' % (cid+1,tid+1)
+        name = t
+#         doc = t.shortDescription() or ""
+        doc = ""
         desc = doc and ('%s: %s' % (name, doc)) or name
         tmpl = has_output and self.REPORT_TEST_WITH_OUTPUT_TMPL or self.REPORT_TEST_NO_OUTPUT_TMPL
 

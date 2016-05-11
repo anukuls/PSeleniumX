@@ -3,15 +3,17 @@ import os
 import testScripts
 import time
 from utility.HTMLTestRunner import HTMLTestRunner
-from utility.Worker_Thread import WorkerThread
+# from utility.Worker_Thread import WorkerThread
 # import inspect
 import yaml
 from utility.ParameterizedTestCase import ParameterizedTestCase
-import threading, Queue
+# import threading, Queue
 # from subprocess import Popen
 from multiprocessing import Process, Queue
+import socket
+# import multiprocessing
 
-class SeleniumGrid_Distributed_Driver():
+class SeleniumGrid_Distributed_Driver(object):
     
     '''
         1. Prepare suite array in the form that Unit Test Runner likes
@@ -31,7 +33,7 @@ class SeleniumGrid_Distributed_Driver():
         with open(grid_driver_config_path, 'r') as f:
             doc = yaml.load(f)
         
-        print doc
+#         print doc
         suite_arr = []
 #         test_name = doc["runConfig"]["node1"]["tests"]["SuiteGrid"]
 
@@ -41,7 +43,6 @@ class SeleniumGrid_Distributed_Driver():
         for k, v in doc.iteritems():
             for newK, newV in v.iteritems():
                 ip = newV["ip"]
-                print "ip is:", ip
                 tests = newV["tests"]
                 port = newV["port"]
                 browser = newV["browser"]
@@ -64,11 +65,11 @@ class SeleniumGrid_Distributed_Driver():
 #                     test_hash = {'class_names' : eval(complete_class_name), 'webdriver_params' : params}
 #                     suite_arr.append(test_hash)
         
-        print "suite arr is:", suite_arr
+#         print "suite arr is:", suite_arr
         return suite_arr
     
     def prepareSuites(self, suite_array):
-        print "preparing suites for distributed execution..."
+#         print "preparing suites for distributed execution..."
         suites_list = []
         
         '''
@@ -96,13 +97,17 @@ class SeleniumGrid_Distributed_Driver():
 #                 suites_list.append(suite)
         
         big_suite = unittest.TestSuite(suites_list)
-        print "big suite is:", big_suite            
+#         print "big suite is:", big_suite            
         return big_suite
     
+#     def __call__(self, test, runner, report_path, out_que):
+#         runner.run(test, report_path, out_que)
+        
     def executeSuites(self, suite_names):
-        print "executing suites remotely..."
+#         print "executing suites remotely..."
         timestr = time.strftime("%Y%m%d%H%M%S")
         report_path = os.getcwd() + "\\..\\reports\\report_" + timestr + ".html"
+        log_path = os.getcwd() + "\\..\\logs\\log_" + timestr + ".log"
 #         fp = open(report_path, "w")
 #         
 #         runner = HTMLTestRunner(
@@ -126,8 +131,20 @@ class SeleniumGrid_Distributed_Driver():
         
         tests = suite_names
         jobs = []
+#         manager = multiprocessing.Manager()
+#         out_queue = Queue()
+#         queues = []
+        
+        runner = HTMLTestRunner(
+                stream=report_path,
+                verbosity=2,
+                title='Report',
+                description='Test Run Report',
+            )
+        
         for test in tests:
             time.sleep(1)
+#             q = Queue()
 #             timestr = time.strftime("%Y%m%d%H%M%S")
 #             report_path = os.getcwd() + "\\..\\reports\\report_" + timestr + ".html"
 #             global file_handle
@@ -138,12 +155,13 @@ class SeleniumGrid_Distributed_Driver():
                 closes the stream when creating a child process.
                 Read this for solution - http://stackoverflow.com/questions/14899355/python-multiprocessing-valueerror-i-o-operation-on-closed-file 
             '''
-            runner = HTMLTestRunner(
-                stream=report_path,
-                verbosity=2,
-                title='Report',
-                description='Test Run Report'
-            )
+#             runner = HTMLTestRunner(
+#                 out_queue,
+#                 stream=report_path,
+#                 verbosity=2,
+#                 title='Report',
+#                 description='Test Run Report',
+#             )
             
             '''
                 TODO: Find out way to create consolidated report rather than one report per test
@@ -167,57 +185,135 @@ class SeleniumGrid_Distributed_Driver():
                 machine as 1 suite, then we would be effectively running 1 process lesser, and runner.run would 
                 execute that suite as 1.  Execution should happen sequentially.
             '''
-            p = Process(target=runner.run, args=(test, report_path))
+#             p = Process(target=runner.run, args=(test, report_path, out_queue))
+            p = Process(target=runner.threadedRun, args=(test, report_path, log_path))
             jobs.append(p)
             
         for i in jobs:
-            i.start()
+            i.start()    
+#         print "output of runner.run:", q.get()
+
+#         while not out_queue.empty():
+#         print "queue is not empty..."
+#         print out_queue.get()
+#         queues.append(out_queue.get())
             
         for i in jobs:
             i.join()
-#             p.start()
-#             p.join() # this blocks until the process terminates
-#             result = queue.get()
-#             print result
-        
-        
-#         ThreadCount = 3;
-#         QueueSize = 10;
 #         
-#         start = time.time()
-#         jobQueue = Queue.Queue(QueueSize);
-#         threadsList = [];
-#         for i in range(ThreadCount):
-#             t = WorkerThread(str(i), jobQueue);
-#             threadsList.append(t);
-#             t.start();
-# 
-#         tests = suite_names
-#         for test in tests:
-#             jobQueue.put((test, runner.run(test)));
+        '''
+            Use Multiprocessing Queues to capture return value of a function, and iterate through the Queues to get each
+            Result object.  Process that result object and create a total result report which will be passed to the 
+            generateReport function
+            1. Need to capture return value of runner.run and append it for each test run
+            2. Create total result here
+            3. Call generateReport function of HTMLTestRunner to generated one consolidated report for the report path
+            
+            Somehow, unable to capture the return output of runner.run through multiprocessing
+            Getting PicklingError: Can't pickle <type 'instancemethod'>: attribute lookup __builtin__.instancemethod failed
+            HACKISH WORKAROUND: 
+            1. Whenever runner.run is called, store the results in a log file locally, and append to that file
+            2. When the run is complete, read from the flat file, and then try to construct a neat consolidated report
+            3. This way we would be able to process the result
+        '''            
+        runner.generateConsolidatedReport(report_path, log_path)
+        result = runner.readResultFromLogpath(log_path)
+        return result
+    
+    def prepareSuiteForMasterRerun(self, suite_array):
+#         print "preparing suite for master rerun..."
+        '''
+            For rerun, use the hub machine to rerun all the failed tests.  Pass as following suite array:
+            [{'class_names' : 'SuiteGrid.google_search_grid.Google_Search', 'webdriver_params' : ['172.18.95.28', 4444, 'firefox']}]
+        '''
+        machine_ip = socket.gethostbyname(socket.gethostname())
+#         print "machine ip:", machine_ip
+        
+        new_suite_array = []
+        for sa in suite_array:
+            splitter = sa.split('.')
+            splitter.pop(0)
+            test_name = ".".join(splitter)
+            new_suite_array.append(test_name)
+        
+#         print "new suite array :", new_suite_array
+        
+        suite_string = ""
+        for test in new_suite_array:
+            suite_string = suite_string + test + ","
+            
+        suite_string = suite_string[:-1]
+        
+        master_suite_array = [{'class_names' : suite_string , 'webdriver_params' : [machine_ip, 4444, 'firefox']}]
+        return master_suite_array
+        
+    
+    '''This method is only for rerun on one of the node machines'''
+    def prepareSuite(self, suite_arr):
+        suites_list = []
+        suite_array = self.prepareSuiteForMasterRerun(suite_arr)
+        
+        '''
+            Iterate through the suite array:
+            [{'class_names' : complete_class_name, 'webdriver_params' : [params]}, {'class_names' : complete_class_name, 'webdriver_params' : [params]}]
+        '''
+        for arr in suite_array:    
+            suite = ParameterizedTestCase.parameterize(arr["class_names"], param=arr["webdriver_params"])
+            '''
+                Let the suite object be created in ParameterizedTestCase module as one.  Multiple cases
+                belonging to a single IP Address would need to be appended there as well, and finally appended
+                here to form the bigger suite of all remote machines
+            '''
+            suites_list.append(suite)
+        
+        big_suite = unittest.TestSuite(suites_list)
+#         print "big suite is:", big_suite            
+                    
+        return big_suite
 
-        # marking end of jobQueue, one marker per thread
-#         for i in range(ThreadCount):
-#             jobQueue.put((None, None));
-# 
-#         for t in threadsList:
-#             while t.isAlive():
-#                 time.sleep(1);
-
-#         print "*" * 50
-#         print "Time taken: %s minutes" % ((time.time() - start) /60)
-
-#         result = runner.run(suite_names)
-#         return result
+    #Use HTMLTestRunner to generate report for the executed cases    
+    def executeSuite(self, suite_names):
+        timestr = time.strftime("%Y%m%d%H%M%S")
+        report_path = os.getcwd() + "\\..\\reports\\rerun_reports\\report_" + timestr + ".html"
+        fp = open(report_path, "w")
+        
+        runner = HTMLTestRunner(
+                stream=fp,
+                verbosity=2,
+                title='Report',
+                description='Test Run Report'
+                )
+        
+        result = runner.run(suite_names)
+        return result
+    
+    def getFailures(self, result):
+        failed_tcs = result["fail_classes"]
+        error_tcs = result["error_classes"]
+        all_failures = failed_tcs + error_tcs
+        return all_failures
+    
+    def rerunFailures(self, failure_array):
+#         print "rerunning failure scripts..."
+        prepared_failure_suite = self.prepareSuite(failure_array)
+        self.executeSuite(prepared_failure_suite)
     
     def main(self):
         '''TODO: Prepare a yml for hub, nodes and tests to be executed on those'''
         suite_array = self.getSuiteFromConfig()
         prepared_suites = self.prepareSuites(suite_array)
-        self.executeSuites(prepared_suites)
+        consolidated_result = self.executeSuites(prepared_suites)
+        all_failures = self.getFailures(consolidated_result)
         '''
             Need to implement rerun failures capability
         '''
+        if len(all_failures) == 0:
+            print "No failures found, hence no need to rerun"
+        else:
+            self.rerunFailures(all_failures)
         
+if __name__ == '__main__':
+    grid = SeleniumGrid_Distributed_Driver()
+    grid.main()        
 # grid = SeleniumGrid_Distributed_Driver()
 # grid.main()

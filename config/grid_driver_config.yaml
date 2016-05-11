@@ -1,15 +1,15 @@
 # tree format
 runConfig:
-    172.18.95.117:
+    node1:
         ip: 172.18.95.117
         port: 5555
         browser: firefox
         tests:
             SuiteGrid.google_search_grid.Google_Search
-    172.18.95.146:
+    node2:
         ip: 172.18.95.146
         port: 5555
         browser: firefox
         tests:
             SuiteGrid.google_search_grid1.Google_Search,
-            SuiteGrid.google_search_grid2.Google_Search
+            SuiteGrid.google_search_grid2.Google_Search            

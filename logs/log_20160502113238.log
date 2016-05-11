@@ -1,0 +1,12 @@
+count = 1 
+pass = 0 
+fail = 0 
+error = 1 
+['testScripts.SuiteGrid.google_search_grid.Google_Search']
+----------
+count = 2 
+pass = 0 
+fail = 0 
+error = 2 
+['testScripts.SuiteGrid.google_search_grid1.Google_Search', 'testScripts.SuiteGrid.google_search_grid2.Google_Search']
+----------
