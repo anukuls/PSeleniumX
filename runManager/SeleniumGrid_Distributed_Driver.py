@@ -311,9 +311,8 @@ class SeleniumGrid_Distributed_Driver(object):
             print "No failures found, hence no need to rerun"
         else:
             self.rerunFailures(all_failures)
-        
+
+'''http://stackoverflow.com/questions/18204782/runtimeerror-on-windows-trying-python-multiprocessing'''        
 if __name__ == '__main__':
     grid = SeleniumGrid_Distributed_Driver()
     grid.main()        
-# grid = SeleniumGrid_Distributed_Driver()
-# grid.main()
