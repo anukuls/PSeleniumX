@@ -11,7 +11,9 @@ from utility.ParameterizedTestCase import ParameterizedTestCase
 # from subprocess import Popen
 from multiprocessing import Process, Queue
 import socket
-# import multiprocessing
+import logging
+import utility.Log_Manager
+import inspect
 
 class SeleniumGrid_Distributed_Driver(object):
     
@@ -27,6 +29,11 @@ class SeleniumGrid_Distributed_Driver(object):
     '''
     
 #     file_handle = None
+
+    def __init__(self):
+#         module_name = inspect.getmodule(self.__class__).__name__
+        self.logger = logging.getLogger("runManager." + self.__class__.__name__)
+        self.logger.info("Beginning execution of Selenium Grid Distributed Driver")
     
     def getSuiteFromConfig(self):
         grid_driver_config_path = os.getcwd() + "\\..\\config\\grid_driver_config.yaml"
@@ -66,10 +73,12 @@ class SeleniumGrid_Distributed_Driver(object):
 #                     suite_arr.append(test_hash)
         
 #         print "suite arr is:", suite_arr
+        self.logger.debug("Distributed Suite to be executed %s" % suite_arr)
         return suite_arr
     
     def prepareSuites(self, suite_array):
 #         print "preparing suites for distributed execution..."
+        self.logger.info("Preparing suites for distributed execution")
         suites_list = []
         
         '''
@@ -105,6 +114,7 @@ class SeleniumGrid_Distributed_Driver(object):
         
     def executeSuites(self, suite_names):
 #         print "executing suites remotely..."
+        self.logger.info("Executing suites on remote machines parallely")
         timestr = time.strftime("%Y%m%d%H%M%S")
         report_path = os.getcwd() + "\\..\\reports\\report_" + timestr + ".html"
         log_path = os.getcwd() + "\\..\\logs\\log_" + timestr + ".log"
@@ -218,10 +228,12 @@ class SeleniumGrid_Distributed_Driver(object):
         '''            
         runner.generateConsolidatedReport(report_path, log_path)
         result = runner.readResultFromLogpath(log_path)
+        self.logger.debug("Consolidated result of distributed run is : %s" % result)
         return result
     
     def prepareSuiteForMasterRerun(self, suite_array):
 #         print "preparing suite for master rerun..."
+        self.logger.info("Preparing suite for rerun of failure tests")
         '''
             For rerun, use the hub machine to rerun all the failed tests.  Pass as following suite array:
             [{'class_names' : 'SuiteGrid.google_search_grid.Google_Search', 'webdriver_params' : ['172.18.95.28', 4444, 'firefox']}]
@@ -244,7 +256,9 @@ class SeleniumGrid_Distributed_Driver(object):
             
         suite_string = suite_string[:-1]
         
+        '''TODO: Pick browser name from grid_driver_config.yaml, remove hardcoding'''
         master_suite_array = [{'class_names' : suite_string , 'webdriver_params' : [machine_ip, 4444, 'firefox']}]
+        self.logger.debug("failed suite to be executed is : %s" % master_suite_array)
         return master_suite_array
         
     
@@ -273,6 +287,7 @@ class SeleniumGrid_Distributed_Driver(object):
 
     #Use HTMLTestRunner to generate report for the executed cases    
     def executeSuite(self, suite_names):
+        self.logger.info("Rerunning Failures : %s" % suite_names)
         timestr = time.strftime("%Y%m%d%H%M%S")
         report_path = os.getcwd() + "\\..\\reports\\rerun_reports\\report_" + timestr + ".html"
         fp = open(report_path, "w")
@@ -291,6 +306,7 @@ class SeleniumGrid_Distributed_Driver(object):
         failed_tcs = result["fail_classes"]
         error_tcs = result["error_classes"]
         all_failures = failed_tcs + error_tcs
+        self.logger.debug("failure tests are : %s" % all_failures)
         return all_failures
     
     def rerunFailures(self, failure_array):
