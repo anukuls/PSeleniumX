@@ -6,18 +6,29 @@ from xml.dom.minidom import parse
 import xml.dom.minidom
 from utility.HTMLTestRunner import HTMLTestRunner
 import inspect
+import logging
+import utility.Log_Manager
 
 class Batch_Driver():
     
+    def __init__(self):
+        self.logger = logging.getLogger("runManager." + self.__class__.__name__)
+        self.logger.info("Beginning execution of Batch Driver")
+    
     def parseXMLForSuites(self, xml_file):
         class_names_list = []
-        dtree = xml.dom.minidom.parse(xml_file)
-        suite = dtree.documentElement
-        tests = suite.getElementsByTagName("class")
-        for test in tests:
-            class_names = test.getElementsByTagName('name')
-            for cname in class_names:
-                class_names_list.append(str(cname.childNodes[0].data))
+        
+        try:
+            dtree = xml.dom.minidom.parse(xml_file)
+            suite = dtree.documentElement
+            tests = suite.getElementsByTagName("class")
+            for test in tests:
+                class_names = test.getElementsByTagName('name')
+                for cname in class_names:
+                    class_names_list.append(str(cname.childNodes[0].data))
+        except Exception as e:
+            self.logger.exception("Error from parseXMLForSuites is : %s" % e)
+            raise
             
         return class_names_list
     
@@ -27,48 +38,60 @@ class Batch_Driver():
         be run automatically or not.
     '''
     def getSuiteFromConfig(self):
-#         parser = SafeConfigParser()
-        batch_driver_config_path = os.getcwd() + "\\..\\config\\batch_driver_config.xml"
-#         parser.read(base_driver_config_path)
-#         class_names = parser.get('runConfig', 'runClass')         
-        class_names_list = self.parseXMLForSuites(batch_driver_config_path)
-#         class_names_list = class_names.split(',')         
+        batch_driver_config_path = os.getcwd() + "\\..\\config\\batch_driver_config.xml"         
+        class_names_list = self.parseXMLForSuites(batch_driver_config_path)         
         suite_arr = []
-         
-        for cname in class_names_list:
-            complete_class_name = "testScripts." + cname
-            suite_arr.append(eval(complete_class_name))
+    
+        try:      
+            for cname in class_names_list:
+                complete_class_name = "testScripts." + cname
+                suite_arr.append(eval(complete_class_name))
+        except Exception as e:
+            self.logger.exception("Error from getSuiteFromConfig is : %s" % e)
+            raise
              
         return suite_arr
     
-    #TODO: Form an xml file with the list
-    # of test cases that need to be run as part of a suite.
-    # 
     def prepareSuite(self, suite_array):
         '''http://stackoverflow.com/questions/5360833/how-to-run-multiple-classes-in-single-test-suite-in-python-unit-testing'''
         suites_list = []
-        loader = unittest.TestLoader()
-        for test_class in suite_array:
-            suite = loader.loadTestsFromTestCase(test_class)
-            suites_list.append(suite)
-#             getSuite += self.addTestsToSuite(s)
-        big_suite = unittest.TestSuite(suites_list)            
+        
+        try:
+            loader = unittest.TestLoader()
+            for test_class in suite_array:
+                suite = loader.loadTestsFromTestCase(test_class)
+                suites_list.append(suite)
+        except Exception as e:
+            self.logger.exception("Error from prepareSuite is : %s" % e)
+            raise
+        
+        big_suite = unittest.TestSuite(suites_list)  
+        self.logger.debug("Suites to be executed : %s" % big_suite)                      
         return big_suite
 
     #Use HTMLTestRunner to generate report for the executed cases    
     def executeSuite(self, suite_names):
         timestr = time.strftime("%Y%m%d%H%M%S")
+        
+        '''TODO: Add a rerun flag which will set report_path to use reports/rerun folder when true'''
         report_path = os.getcwd() + "\\..\\reports\\report_" + timestr + ".html"
-        fp = open(report_path, "w")
         
-        runner = HTMLTestRunner(
-                stream=fp,
-                verbosity=2,
-                title='Report',
-                description='Test Run Report'
-                )
-        
-        result = runner.run(suite_names)
+        self.logger.info("Executing suites in batch mode")
+        try:
+            fp = open(report_path, "w")
+            
+            runner = HTMLTestRunner(
+                    stream=fp,
+                    verbosity=2,
+                    title='Report',
+                    description='Test Run Report'
+                    )
+            
+            result = runner.run(suite_names)
+        except Exception as e:
+            self.logger.exception("Error from executeSuite is : %s" % e)
+            raise
+            
         return result
     
     def getFailures(self, result):
@@ -91,12 +114,13 @@ class Batch_Driver():
             failure_classes.append(eval(full_fail_class_name))
  
         all_failed_classes = error_classes + failure_classes
-        print "all failed classes:", all_failed_classes
+        
+        self.logger.debug("All failed tests : %s" % all_failed_classes)
          
         return all_failed_classes    
         
     def rerunFailures(self, failure_array):
-        print "rerunning failure scripts..."
+        self.logger.info("Rerunning failure scripts")
         prepared_failure_suite = self.prepareSuite(failure_array)
         self.executeSuite(prepared_failure_suite)
      
@@ -107,7 +131,7 @@ class Batch_Driver():
         failures = self.getFailures(results)
         
         if len(failures) == 0:
-            print "No failures found, hence no need to rerun"
+            self.logger.info("No failures found, hence no need to rerun")
         else:
             self.rerunFailures(failures)      
          

@@ -3,18 +3,23 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from ConfigParser import SafeConfigParser
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+import logging
+import utility.Log_Manager
+
+logger = logging.getLogger("utility.Common_Actions")
 
 def openBrowser(browser_name):
     driver = None
     if browser_name == "firefox":
+        logger.info("Launching Firefox Browser")
         driver = webdriver.Firefox()
     elif browser_name == "chrome":
-        print "starting chrome browser..."
+        logger.info("Launching Chrome Browser")
         chromedriver = os.getcwd() + "\\..\\drivers\\chromedriver.exe"
         os.environ["webdriver.chrome.driver"] = chromedriver
         driver = webdriver.Chrome(chromedriver)
     elif browser_name == "ie":
-        print "starting ie browser..."
+        logger.info("Launching IE Browser")
     return driver
 #end openBrowser
 
@@ -25,8 +30,8 @@ def getBrowserFromConfig():
     browser = parser.get('runConfig', 'browser')
     return browser
 
+'''Add capabilitites for chrome and IE'''
 def openRemoteBrowser(remote_params):
-    print "param is:", remote_params
     browser = remote_params[2]
     ip = remote_params[0]
     port = remote_params[1]
