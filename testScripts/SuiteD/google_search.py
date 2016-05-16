@@ -3,11 +3,11 @@ from selenium import webdriver
 from projectModule import Google_Actions
 from utility import Common_Actions
 from utility import TestData_Loader
+import utility.Reporter
 
 class Google_Search(unittest.TestCase):
     
     def setUp(self):
-        print "executing from Suite D..."
         browser = Common_Actions.getBrowserFromConfig()
         this = self.__class__
         self.data = TestData_Loader.loadTestData(this)

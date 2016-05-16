@@ -21,7 +21,10 @@ def textfield_Search(dr):
         element = dr.wait.until(EC.presence_of_element_located((By.NAME, "q"))) 
     except TimeoutException as te:
         logger.exception("Search text field not found in google.com. Trace : %s" % te)
-        raise    
+        raise
+    except Exception as e:
+        logger.exception("Search text field not found in google.com. Trace : %s" % e)
+        raise
         
     return element
 #end textfield_Search
@@ -32,7 +35,10 @@ def button_Search(dr):
         element = dr.wait.until(EC.element_to_be_clickable((By.NAME, "btnG"))) 
     except TimeoutException as te:
         logger.exception("Search button not found in google.com. Trace : %s" % te)
-        raise        
+        raise
+    except Exception as e:
+        logger.exception("Search button not found in google.com. Trace : %s" % e)
+        raise                
     return element
 #end button_Search
     
