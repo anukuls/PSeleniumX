@@ -13,6 +13,10 @@ from multiprocessing import Process
 import socket
 import logging
 import utility.Log_Manager
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from ConfigParser import SafeConfigParser
 
 class SeleniumGrid_Distributed_Driver(object):
     
@@ -258,18 +262,103 @@ class SeleniumGrid_Distributed_Driver(object):
     
     def rerunFailures(self, failure_array):
         prepared_failure_suite = self.prepareSuite(failure_array)
-        self.executeSuite(prepared_failure_suite)
+        result = self.executeSuite(prepared_failure_suite)
+        return result
+        
+    '''
+        To Avoid send email authentication errors from gmail, goto https://www.google.com/settings/security/lesssecureapps
+        and TURN ON access for less secure apps.  The code below will work then
+    '''
+    def sendEmail(self, final_result):
+        self.logger.info("Sending result email to the desired recipients")
+#         to = 'opencti2@gmail.com'
+#         gmail_user = 'opencti2@gmail.com'
+#         gmail_pwd = 'smoke123!' 
+        
+        parser = SafeConfigParser()
+        email_config_path = os.getcwd() + "\\..\\config\\email_config.ini"
+        
+        parser.read(email_config_path)
+        to = parser.get('emailConfig', 'recipients')
+        recipient_arr = to.split(',')
+                 
+        gmail_user = parser.get('emailConfig', 'from_user')
+        gmail_pwd = parser.get('emailConfig', 'from_pwd')
+        
+        # Create message container - the correct MIME type is multipart/alternative.
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = "Test Run Result"
+        msg['From'] = gmail_user
+        msg['To'] = ", ".join(recipient_arr)
+        
+        # Create the body of the message
+        '''
+            1. Send html email - http://stackoverflow.com/questions/882712/sending-html-email-using-python
+            2. To pass variables within html - http://stackoverflow.com/questions/13208212/python-variable-in-an-html-email-in-python
+        '''
+        count = final_result["count"]
+        passed = final_result["passed"]
+        failed = final_result["failed"]
+        html = """\
+            <html>
+              <head></head>
+              <body>
+                <p>
+                   <b>Count = {count}</b><br>
+                   <b>Pass = {passed}</b><br>
+                   <b>Fail = {failed}</b><br>
+                </p>
+              </body>
+            </html>
+        """.format(**locals())
+        
+        # Record the MIME types
+        part1 = MIMEText(html, 'html')
+        
+        # Attach parts into message container.
+        # According to RFC 2046, the last part of a multipart message, in this case
+        # the HTML message, is best and preferred.
+        msg.attach(part1) 
+        
+        '''Pick to (authentication info) and recipients information from an xml file'''
+        try:
+            smtpserver = smtplib.SMTP("smtp.gmail.com",587)
+            smtpserver.ehlo()
+            smtpserver.starttls()
+            smtpserver.ehlo
+            smtpserver.login(gmail_user, gmail_pwd)
+            smtpserver.sendmail(gmail_user, recipient_arr, msg.as_string())
+            self.logger.info("Email sent to desired recipients - %s" % to)
+        except Exception as e:
+            self.logger.exception("Unable to send email.  Error is : %s" % e)
+            '''No need to raise exception'''
+        finally:
+            smtpserver.close();
     
     def main(self):
         suite_array = self.getSuiteFromConfig()
         prepared_suites = self.prepareSuites(suite_array)
         consolidated_result = self.executeSuites(prepared_suites)
+        self.logger.info("Consolidated results are : %s" % consolidated_result)
         all_failures = self.getFailures(consolidated_result)
         
         if len(all_failures) == 0:
             self.logger.info("No failures found, hence no need to rerun")
         else:
-            self.rerunFailures(all_failures)
+            rerun_result = self.rerunFailures(all_failures)
+            self.logger.debug("rerun_result is : %s" % rerun_result)
+            rerun_result_failure_count = rerun_result.failure_count
+            rerun_result_error_count = rerun_result.error_count
+            rerun_result_success_count = rerun_result.success_count 
+        '''
+            Get Final Result after rerun and send result to stakeholders
+            Send body as an html
+        '''
+        final_result = {}
+        final_result["count"] = consolidated_result["count"]
+        final_result["passed"] = consolidated_result["passed"] + rerun_result_success_count
+        final_result["failed"] = rerun_result_failure_count + rerun_result_error_count
+        self.sendEmail(final_result)
 
 '''http://stackoverflow.com/questions/18204782/runtimeerror-on-windows-trying-python-multiprocessing'''        
 if __name__ == '__main__':
