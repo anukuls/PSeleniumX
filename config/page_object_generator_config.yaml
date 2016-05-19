@@ -1,0 +1,14 @@
+# tree format
+generator:
+    page1:
+        name: Yahoo_Home
+        elements:
+            textField_Search: name,q
+            button_Search: name,search
+            link_Selenium: name,Sel
+    page2:
+        name: Amazon_Home
+        elements:
+            textField_Search: name,t
+            radio_Yes: name,Yes
+            link_iPod: name,iPod            

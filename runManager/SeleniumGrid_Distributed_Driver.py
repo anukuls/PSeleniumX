@@ -358,6 +358,8 @@ class SeleniumGrid_Distributed_Driver(object):
         final_result["count"] = consolidated_result["count"]
         final_result["passed"] = consolidated_result["passed"] + rerun_result_success_count
         final_result["failed"] = rerun_result_failure_count + rerun_result_error_count
+        
+        '''TODO: Send email only if send_email flag is set to true in email_config.ini'''
         self.sendEmail(final_result)
 
 '''http://stackoverflow.com/questions/18204782/runtimeerror-on-windows-trying-python-multiprocessing'''        
