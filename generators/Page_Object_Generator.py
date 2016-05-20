@@ -94,7 +94,6 @@ class Page_Object_Generator():
         '''
         for k, v in doc.iteritems():
             for pg in v.keys():
-                print "page name:", v[pg]["name"]
                 pog = Page_Object_Generator(v[pg]["name"])
                 pog.createPageObjectFile()
                 
