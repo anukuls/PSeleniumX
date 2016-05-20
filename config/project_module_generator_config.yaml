@@ -1,0 +1,12 @@
+# tree format
+module_generator:
+    module1:
+        name: Yahoo_Home_Actions
+        related_page: Yahoo_Home_Page
+        functions:
+            function1: 
+                name: login
+                args: username,password
+            function2:
+                name: logout
+                args: none        
