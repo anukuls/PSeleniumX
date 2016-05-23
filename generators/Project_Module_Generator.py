@@ -60,7 +60,6 @@ class Project_Module_Generator():
             
         for k,v in doc.iteritems():
             for newV in v.values():
-                print newV
                 pmg = Project_Module_Generator(newV["name"])
                 pmg.createProjectModuleFile(newV["related_page"])
                 for func in newV["functions"].values():
